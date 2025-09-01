@@ -299,4 +299,9 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
     cmd_list = ["blender","-P","blender_load_tomo.py"]
     if not open_gui:
         cmd_list.append("--background")
-    subprocess.call(cmd_list)
+    try:
+        # Try loading under the assumption of a system install of blender.
+        subprocess.call(cmd_list)
+    except:
+        # Otherwise load blender under the assumption of a bash alias.
+        subprocess.call(["/bin/bash","-i","-c"] + [" ".join(cmd_list)])

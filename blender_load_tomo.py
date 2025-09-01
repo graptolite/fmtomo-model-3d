@@ -22,6 +22,8 @@ import bpy
 import os
 import sys
 import numpy as np
+# Ensure the current path is recognised by Blender Python as containing loadable modules.
+sys.path.insert(0,"./")
 import materials
 
 def toggle_selection(action):
@@ -159,7 +161,7 @@ bpy.context.object.data.ortho_scale = 20
 bpy.context.object.data.shift_y = 0.15
 
 bpy.context.scene.camera = cam
-background = materials.render_background
+background = materials.background
 if render_background == None:
     bpy.context.scene.render.film_transparent = True
 else:
