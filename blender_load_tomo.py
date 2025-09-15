@@ -190,7 +190,7 @@ bpy.context.object.data.shift_y = 0.15
 
 bpy.context.scene.camera = cam
 background = materials.background
-if render_background == None:
+if materials.background == None:
     bpy.context.scene.render.film_transparent = True
 else:
     # Set black background
