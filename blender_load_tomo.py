@@ -18,6 +18,8 @@ FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity an
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
+# Script to be loaded by Blender for handling the collation of 3D objects and render if requested.
+
 import bpy
 import os
 import sys
@@ -27,19 +29,43 @@ sys.path.insert(0,"./")
 import materials
 
 def toggle_selection(action):
+    ''' Toggle the selection of objects.
+
+    Returns: <None>
+    '''
     bpy.ops.object.select_all(action=action)
+    return
+
 def deselect_all():
+    ''' Deselect all object.
+
+    Returns: <None>
+    '''
     toggle_selection("DESELECT")
     return
+
 def select_all():
+    ''' Select all object.
+
+    Returns: <None>
+    '''
     toggle_selection("SELECT")
     return
+
 def delete_all():
+    ''' Delete all objects.
+
+    Returns: <None>
+    '''
     select_all()
     bpy.ops.object.delete()
     return
 
 def new_collection(name):
+    ''' Create a new collection.
+
+    Returns: <bpy.types.Collection>
+    '''
     # Define new collection
     coll = bpy.data.collections.new(name)
     # Load collection into the scene.
@@ -47,9 +73,10 @@ def new_collection(name):
     return coll
 
 
-# Remove all pre-existing items.
+# Remove all default items upon Blender load.
 delete_all()
 
+# Create new collection for handling optical objects (lighting and cameras).
 optics_col = new_collection("optics")
 # Add sun.
 bpy.ops.object.light_add(type='SUN',radius=1,align='WORLD',location=(0,0,0),rotation=(0,0,0))
@@ -60,6 +87,7 @@ optics_col.objects.link(sun)
 
 deselect_all()
 
+# Move to the temp dir.
 os.chdir("tmp")
 # Declare working dir.
 basefolder = os.getcwd()
@@ -169,6 +197,12 @@ else:
     bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[0].default_value = background
 
 def render_all(append=""):
+    ''' Autorender the 3D model looking from the 4 ordinal directions, and saves these renders with the direction of looking in the filename.
+
+    append | <str> | string to append to the end of the image file saving the render.
+
+    Returns: <None>
+    '''
     cam.rotation_euler = [np.radians(60),0,0]
     render_conf = {"SW":(-np.radians(45),[-x0,-y0,max_z+2]),
                    "SE":(np.radians(45),[max_ew+x0,-y0,max_z+2]),
@@ -183,24 +217,29 @@ def render_all(append=""):
     return
 
 if render:
+    # If rendering is requested:
     if not is_recovery:
+        # Render the recovered velocity structures.
         render_all()
     else:
         colls = [c.name for c in bpy.data.collections]
-        # Recovered structure
+        # Get list of collections containing recovered velocity structure.
         coll_recv = [c for c in colls if "vgrid" in c and "true" not in c]
-        # True structure
+        # Get list of collections containing true velocity structure.
         coll_true = [c for c in colls if "true" in c]
         # Hide all recovered velocity structures.
         for c in coll_recv:
             bpy.data.collections[c].hide_render = True
+        # Render the true velocity structures.
         render_all("-true")
         # Show all recovered velocity structures and hide all true velocity structures.
         for c in coll_recv:
             bpy.data.collections[c].hide_render = False
         for c in coll_true:
             bpy.data.collections[c].hide_render = True
+        # Render the recovered velocity structures.
         render_all("-recovered")
 
 deselect_all()
+# Move back out of the temp dir.
 os.chdir("../")

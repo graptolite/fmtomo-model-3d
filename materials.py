@@ -18,11 +18,17 @@ FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity an
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 '''
 
+# Material/color configuration for the Blender models.
+
+# RGB color for the map placed at the top of the 3D model domain. Each channel's value ranges from 0 to 1.
 upper_map_rgb = (0,1,0) # Green
+# RGB color for the map placed at the bottom of the 3D model domain. Each channel's value ranges from 0 to 1.
 lower_map_rgb = (1,0,0) # Red
+# RGBA color for the Blender model's background. Each channel's value ranges from 0 to 1.
 background = (0.03, 0.03, 0.03, 1) # Nearly black
 
 try:
+    # Predefined materials for use by scripts/code importing this file via system (not via Blender).
     from processing_functions import Material
 
     # Materials defined by <name> : dict(rgb=<RGB>,alpha=<alpha [optional]>)

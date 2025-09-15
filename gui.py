@@ -75,14 +75,23 @@ class GUI(Tk):
         self.fp = ""
         return
     def load_files(self):
+        ''' Copy the required grid files from the fmtomo working directory to the temp dir.
+
+        Returns: <None>
+        '''
+        # Retrieve the path to the fmtomo working dir.
         fp = self.inp.get()
         self.fp = fp
+        # Validate that the fmtomo working dir exists.
         if fp and os.path.exists(fp):
             try:
+                # Clear any old files that may be present in the temp dir.
                 for f in os.listdir("tmp"):
                     os.remove(os.path.join("tmp",f))
+                # Attempt to load the required grid files.
                 for f in ["vgrids.in","vgridsref.in","propgrid.in"]:
                     shutil.copy(os.path.join(fp,f),"tmp")
+                # Load the optional grid file if present.
                 v_true = os.path.join(fp,"vgridstrue.in")
                 if os.path.exists(v_true):
                     shutil.copy(v_true,"tmp")
@@ -93,7 +102,12 @@ class GUI(Tk):
             self.update_msg("Folder does not exist.")
         return
     def load_3d(self):
+        ''' Handle the 3D modelling from the grid files present in the temp dir.
+
+        Returns: <None>
+        '''
         self.update_msg("Loading 3D...")
+        # Get all of the input and control parameters.
         isosurface = float(self.isosurface.get())
         material = materials[self.material_val.get()]
         blender_downscale = self.blender_downscale_val.get()
@@ -101,17 +115,30 @@ class GUI(Tk):
         open_gui = bool(self.open_gui.get())
         isosurface_specs = {isosurface:material}
         print(isosurface,material,blender_downscale,render,open_gui)
+        # Try running the 3D modelling.
         try:
             exec_3d(blender_downscale,isosurface_specs,render,open_gui)
             self.update_msg("Finished blender rendering")
         except FileNotFoundError:
-            self.update_msg("No FMTOMO folder loaded yet")
+            self.update_msg("No FMTOMO folder loaded yet, or input params are missing")
         return
     def stack_widgets(self,widget_list):
+        ''' Stack tkinter widgets above each other.
+
+        widget_list | <list> | list of tkinter widgets.
+
+        Returns: <None>
+        '''
         for i,w in enumerate(widget_list):
             w.grid(column=0,row=0+i)
         return
     def update_msg(self,text):
+        ''' Replace the content of the message in the GUI with new text.
+
+        text | <str> | text to replace the previous message in the GUI with.
+
+        Returns: <None>
+        '''
         self.msg.itemconfig(self.text_placeholder,text=text)
 
 

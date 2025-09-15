@@ -2,6 +2,12 @@ Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced 
 
 A wireframe map will be placed at the top and bottom of the model volume.
 
+# Dependencies
+
+Linux system with `gmt`, `inskcape` and `blender` installed. `fmtomo` working directory using default velocity and propogation grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test, `propgrid.in`).
+
+Python packages: `json`, `numpy`, `os`, `pandas`, `re`, `scipy`, `shutil`, `skimage`, `subprocess`, `sys`, `tkinter`
+
 # Basic Usage
 After running `gui.py`, a Tkinter GUI window will pop up with various options.
 
