@@ -54,8 +54,8 @@ class GUI(Tk):
         self.open_gui = IntVar(value=1)
         self.blender_gui = Checkbutton(self.inputs_frame,text="Blender GUI",variable=self.open_gui,onvalue=1,offvalue=0)
         self.btn_3d = Button(self.inputs_frame,text="Load 3D",width=10,height=1,command=self.load_3d)
-        input_widget_list = [self.l_input,self.inp,self.btn,
-                             self.l_isosurf,self.isosurface,
+        input_widget_list = [self.l_isosurf,self.isosurface,
+                             self.l_input,self.inp,self.btn,
                              self.l_mat,self.material,
                              self.l_downscale,self.blender_downscale,
                              self.render,self.blender_gui,
