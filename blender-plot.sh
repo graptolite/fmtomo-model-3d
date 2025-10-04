@@ -18,9 +18,10 @@
 
 bounds=$1
 width=$2
+height=$3
 
 gmt begin map pdf
-gmt coast -W1p,black -A100 -JM${width}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0
+gmt coast -W1p,black -A100 -JX${width}c/${height}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0
 gmt end
 
 inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg

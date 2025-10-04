@@ -4,7 +4,7 @@ A wireframe map will be placed at the top and bottom of the model volume.
 
 # Dependencies
 
-Linux system with `gmt`, `inskcape` and `blender` installed. `fmtomo` working directory using default velocity and propogation grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test, `propgrid.in`).
+Linux system with `gmt`, `inskcape` and `blender` installed. `fmtomo` working directory using default velocity grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test).
 
 Python packages: `json`, `numpy`, `os`, `pandas`, `re`, `scipy`, `shutil`, `skimage`, `subprocess`, `sys`, `tkinter`
 
@@ -26,7 +26,7 @@ Once all the options are set as desired, the button "Load 3D" can be pressed to 
 Different parameters can be changed for different types of plot.
 
 ## `blender-plot.sh`
-As long as the options `-JM${width}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0` are retained, different `gmt coast` calls can be used e.g. rivers and/or lakes can be added in the call.
+As long as the options `-JM${width}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0` and the map file output name are retained, different `gmt coast` calls can be used e.g. rivers and/or lakes can be added in the call, and additional plotting functions can be called.
 
 ## `materials.py`
 The wireframe map colours can be set in `materials.py` by changing `upper_map_rgb` and `lower_map_rgb` tuples to modify the respective maps. By default, the upper map is green and the lower map is red. The RGB tuple is fractional (i.e. (1,1,1) = 100% R, 100% G, 100% B).

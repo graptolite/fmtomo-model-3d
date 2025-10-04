@@ -72,6 +72,22 @@ def new_collection(name):
     bpy.context.scene.collection.children.link(coll)
     return coll
 
+def import_svg(scale,map_svg="map.svg"):
+    # Import SVG map.
+    bpy.ops.import_curve.svg(filepath=map_svg)
+    # Join all individual SVG beziers into one bezier
+    objs = list(bpy.data.collections[map_svg].all_objects)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+    bpy.ops.object.join()
+    combined_map = bpy.context.object
+    combined_map.visible_shadow = False
+    combined_map.scale[0] = scale
+    combined_map.scale[1] = scale
+    combined_map.data.bevel_depth = 1.5*1e-2/scale
+    combined_map.data.twist_mode = "Z_UP"
+    return combined_map
 
 # Remove all default items upon Blender load.
 delete_all()
@@ -100,22 +116,8 @@ render = bool(int(render))
 
 # Import SVG map.
 map_svg = "map.svg"
-bpy.ops.import_curve.svg(filepath=map_svg)
-# Join all individual SVG beziers into one bezier
-objs = list(bpy.data.collections[map_svg].all_objects)
-for o in objs:
-    o.select_set(True)
-bpy.context.view_layer.objects.active = o
-bpy.ops.object.join()
-combined_map = bpy.context.object
-# Remove shadows cast by maps.
-combined_map.visible_shadow = False
-# Scaling and other geometry options.
-combined_map.scale[0] = scale
-combined_map.scale[1] = scale
+combined_map = import_svg(scale,map_svg)
 combined_map.location[2] = max_z
-combined_map.data.bevel_depth = 1e-2 / scale
-combined_map.data.twist_mode = "Z_UP"
 
 # Upper bound map.
 l_map_mtl = "map-mtl"

@@ -89,7 +89,7 @@ class GUI(Tk):
                 for f in os.listdir("tmp"):
                     os.remove(os.path.join("tmp",f))
                 # Attempt to load the required grid files.
-                for f in ["vgrids.in","vgridsref.in","propgrid.in"]:
+                for f in ["vgrids.in","vgridsref.in"]:
                     shutil.copy(os.path.join(fp,f),"tmp")
                 # Load the optional grid file if present.
                 v_true = os.path.join(fp,"vgridstrue.in")
@@ -97,7 +97,7 @@ class GUI(Tk):
                     shutil.copy(v_true,"tmp")
                 self.update_msg("Folder successfully loaded")
             except:
-                self.update_msg("Folder does not contain one or more of vgrids.in, vgridsref.in or propgrid.in")
+                self.update_msg("Folder does not contain one or more of vgrids.in or vgridsref.in")
         else:
             self.update_msg("Folder does not exist.")
         return
@@ -114,7 +114,6 @@ class GUI(Tk):
         render = bool(self.do_render.get())
         open_gui = bool(self.open_gui.get())
         isosurface_specs = {isosurface:material}
-        print(isosurface,material,blender_downscale,render,open_gui)
         # Try running the 3D modelling.
         try:
             exec_3d(blender_downscale,isosurface_specs,render,open_gui)

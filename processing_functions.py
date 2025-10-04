@@ -63,40 +63,40 @@ class BlenderGeoDomain():
     ''' Wrapper class for the storage and easy retrieval of parameters describing the spatial relation between the tomography model's velocity grid (in earth lat-lon coodinates) and the blender model (downscaled, free-floating cartesian coordinates.
 
     lat0              | <float> | minimum (southernmost) latitude in the tomography model.
-    lat_range         | <float> | latitude "width" in the tomography model.
+    lat1              | <float> | maximum (northernmost) latitude in the tomography model.
     lon0              | <float> | minimum (westernmost) longitude in the tomography model.
-    lon_range         | <float> | longitude "width" in the tomography model.
+    lon1              | <float> | maximum (easternmost) longitude in the tomography model.
     z0                | <float> | minimum depth in the tomography model (i.e. the top of the model).
-    z_range           | <float> | depth extent in the tomography model.
+    z1                | <float> | maximum depth in the tomography model (i.e. the bottom of the model).
     n_lon             | <int>   | number of longitude nodes in the tomography model
     n_lat             | <int>   | number of latitude nodes in the tomography model
     n_z               | <int>   | number of depth nodes in the tomography model
     blender_downscale | <float> | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
     '''
-    def __init__(self,lat0,lat_range,lon0,lon_range,z0,z_range,n_lon,n_lat,n_z,blender_downscale):
+    def __init__(self,lat0,lat1,lon0,lon1,z0,z1,n_lon,n_lat,n_z,blender_downscale):
         # Declare the downscaling applied for the active model.
         print("Every 1 m in blender is %.2f km in real life" % blender_downscale)
         self.lat0 = lat0
-        self.lat_range = lat_range
-        self.lat1 = lat0 + lat_range
+        self.lat1 = lat1
         self.lon0 = lon0
-        self.lon_range = lon_range
-        self.lon1 = lon0 + lon_range
+        self.lon1 = lon1
+        self.lat_range = lat1 - lat0
+        self.lon_range = lon1 - lon0
         self.z0 = z0
-        self.z_range = z_range
-        self.z1 = z0 + z_range # Positive is downwards
+        self.z1 = z1
+        self.z_range = z1 - z0 # Positive is downwards
         self.blender_downscale = blender_downscale
         # Compute latitude and longitude cartesian spacing for the model (assuming the model is small enough that it's uniform throughout the model domain)
-        self.km_per_lat_deg,self.km_per_lon_deg = latlon_grid_to_km(lat0)
+        self.km_per_lat_deg,self.km_per_lon_deg = latlon_grid_to_km((self.lat0+self.lat1)/2)
         # Compute the EW (lon) and NS (lat) extent of the model in km.
-        self.ew_range = lon_range * self.km_per_lon_deg
-        self.ns_range = lat_range * self.km_per_lat_deg
+        self.ew_range = self.lon_range * self.km_per_lon_deg
+        self.ns_range = self.lat_range * self.km_per_lat_deg
         # Compute the Blender model extent after applying downscaling.
-        self.blender_ew_range = self.ew_range/blender_downscale
-        self.blender_ns_range = self.ns_range/blender_downscale
-        self.blender_z_range = self.z_range/blender_downscale
+        self.blender_ew_range = self.ew_range/self.blender_downscale
+        self.blender_ns_range = self.ns_range/self.blender_downscale
+        self.blender_z_range = self.z_range/self.blender_downscale
         # Declare the depth range in Blender units (m)
-        print(self.blender_z_range)
+        print("Blender depth range:",self.blender_z_range,"Model depth min max:",self.z0,self.z1)
         # Compute node intervals in Blender units.
         self.scale_ew = self.blender_ew_range/n_lon
         self.scale_ns = self.blender_ns_range/n_lat
@@ -140,55 +140,6 @@ class WavefrontObj():
         if mtl_f:
             self.cmd_list.append("mtllib %s" % mtl_f)
         return
-    def add_height_map(self,height_matrix,z_interval,translate=[0,0,0],object_name=""):
-        ''' Add a height map surface spanning the entire 3D model's map-view extent to the obj.
-
-        height_matrix | <np.array>       | 2D array of heights spanning the 3D model's map extent (and with the same orientation).
-        z_interval    | <float>          | vertical units of the heightmap relative to blender's 1 unit = 1 m conversion.
-        translate     | <list> [<float>] | x,y,z offset of the heightmap.
-        object_name   | <str>            | name of the heightmap display in the Blender layers panel.
-        '''
-        # Avoid adding blank height matrices.
-        if all(np.isnan(height_matrix).flatten()):
-            return
-        # Declare the object's name in the command list.
-        self.cmd_list.append("o %s" % object_name)
-        # Pre-check that the height matrix is rectangular.
-        n_rows = len(height_matrix)
-        const_cols = len(set([len(row) for row in height_matrix])) == 1
-        if const_cols:
-            n_cols = len(height_matrix[0])
-        else:
-            print("Error: non-constant number of columns for the rows of the matrix")
-        # Compute the x and y intervals in the obj model's domain.
-        x_interval = self.dimensions[0]/n_rows
-        y_interval = self.dimensions[1]/n_cols
-        # Add vertex commands.
-        for i,row in enumerate(height_matrix):
-            for j,z in enumerate(row):
-                coords = [i*x_interval+translate[0],z*z_interval+translate[2],-j*y_interval+translate[1]]
-                self.cmd_list.append("v %.2f %.2f %.2f" % tuple(coords))
-        # Add face/surface commands.
-        for i in range(n_rows-1):
-            for j in range(n_cols-1):
-                near_nans = [np.isnan(height_matrix[i,j]),
-                             np.isnan(height_matrix[i+1,j]),
-                             np.isnan(height_matrix[i+1,j+1]),
-                             np.isnan(height_matrix[i+1,j-1]),
-                             np.isnan(height_matrix[i-1,j]),
-                             np.isnan(height_matrix[i-1,j+1]),
-                             np.isnan(height_matrix[i-1,j-1]),
-                             np.isnan(height_matrix[i,j+1]),
-                             np.isnan(height_matrix[i,j-1]),
-                             ]
-                # Avoid adding a face if self or neighbouring points (in square ring) have nan values).
-                if not any(near_nans):
-                    c = i*n_cols+self.vert_counter + j
-                    face = [c,c+1,c+n_cols,c+1+n_cols]
-                    self.cmd_list.append("f %u %u %u" % tuple(face[:-1]))
-                    self.cmd_list.append("f %u %u %u" % tuple(face[1:]))
-        self.vert_counter += height_matrix.shape[0]*height_matrix.shape[1]
-        return
     def add_isosurface(self,grid,isosurface_level,translate=[0,0,0],name_append=""):
         ''' Add an isovalue surface from a 3D grid of values spanning the 3D model's extent to the obj.
 
@@ -202,17 +153,19 @@ class WavefrontObj():
         # Declare the object's name in the command list.
         self.cmd_list.append("o %.2f %s" % (isosurface_level,name_append))
         # Convert grid dimensions in order of Z, NS, EW -> EW, NS, Z
-        nx,ny,nz = grid.shape[::-1]
-        # Get the scaling factors (from isosurface model domain to the 3D model domain) in order of EW, NS, Z
-        scale = self.dimensions/np.array([nx,ny,nz])
-        # Same as above in order of Z, EW, NS
-        scale = np.array([scale[2],scale[0],scale[1]])
+        grid_dims = np.array(grid.shape)[::-1]
+        # Get the scaling factors (from isosurface model domain to the 3D model domain) in order of EW, NS, Z (same order as self.dimensions)
+        scale = self.dimensions/grid_dims
+        # Since the marching cubes algo returns coordinates in a zero indexed node system whereas the model dimension counting system is 1 indexed, need to account for the difference in scaling of the maximum node location.
+        index_mismatch_scaling = grid_dims/(grid_dims-1)
+        scale *= index_mismatch_scaling
+        scale = scale[::-1]
         # Add vertex commands.
         for v in verts:
             # Scale in order of depth, lon, lat
-            vx,vy,vz = tuple(v*scale)
-            # Fix the order of axes.
-            self.cmd_list.append("v %.2f %.2f %.2f" % (vz+translate[0],vx+translate[2],-vy+translate[1]))
+            vz,vy,vx = tuple(v*scale)
+            # Fix the order of axes for Blender coordinate system.
+            self.cmd_list.append("v %.2f %.2f %.2f" % (vx+translate[0],vz+translate[2],-vy+translate[1]))
         # Add face commands.
         for f in faces:
             self.cmd_list.append("f %u %u %u" % tuple(f+self.vert_counter))
@@ -263,7 +216,7 @@ def haversine_dist(r,theta):
 def latlon_grid_to_km(at_lat):
     ''' Compute the cartesian grid spacing (in km per degree) for a given latitude.
 
-    at_lat | <float> | Latitude to compute the spacing at.
+    at_lat | <float> | Latitude (in degrees) to compute the spacing at.
 
     Returns: <float>, <float> | N-S, E-W grid spacing in km per degree.
     '''
@@ -277,7 +230,7 @@ def latlon_grid_to_km(at_lat):
     return km_per_lat_deg,km_per_lon_deg
 
 def relative_vgrid(vgrids_f,vgridsref_f):
-    ''' Compute relative velocity differences between a "observed" velocity grid and reference velocity grid.
+    ''' Compute relative velocity differences between a "observed" velocity grid and reference velocity grid. These velocity grids will have cushion nodes that get removed throughout this workflow.
 
     vgrids_f    | <str> | filepath to observed velocity grid in fmtomo format (i.e. structured 1D list of velocities).
     vgridsref_f | <str> | filepath to reference velocity grid in fmtomo format.
@@ -295,6 +248,8 @@ def relative_vgrid(vgrids_f,vgridsref_f):
     vs = pd.DataFrame({"v":vs_inv["v"]-vs_ref["v"]})
     # Shape the structured 1D velocity grid list into a 3D grid array.
     vs_3d = vs.to_numpy().reshape(shape)
+    # Remove the cushion nodes.
+    vs_3d = vs_3d[1:-1,1:-1,1:-1]
     return vs_3d
 
 def is_recovery_test():
@@ -377,41 +332,48 @@ def process_dv(vgrid_f,domain,obj_f,isosurface_specs,name_append="",vgrid_ref="v
         obj.set_material(mtl)
         # Extract and add the isosurface from the relative velocity 3D grid.
         try:
-            obj.add_isosurface(dv,level,translate=[0,0,-(domain.z0/domain.blender_downscale)],name_append="km s-1 %s" % name_append)
+            obj.add_isosurface(dv,level,name_append="km s-1 %s" % name_append)
         except ValueError:
             pass
     # Write the obj (and mtl) files.
     obj.write_obj(obj_f)
     return dv
 
-def parse_in_line(l):
-    ''' Convert a line of space-separated strings to a list of floats.
+def parse_in_line(l,t=float):
+    ''' Convert a line of space-separated strings to a list of specified types.
 
-    l | <str> | line of space-separated strings that can be cast to floats.
+    l | <str>  | line of space-separated strings that can be cast to floats.
+    t | <type> | type to cast the list items to
 
-    Returns: <list> [<float>] | list of floats.
+    Returns: <list> [<type>] | list of specified types.
     '''
-    return [float(x) for x in l.split(" ") if x.strip()]
+    return [t(x) for x in l.split(" ") if x.strip()]
 
-def construct_blender_domain(blender_downscale):
-    ''' Construct BlenderGeoDomain object from the grid files of an fmtomo run.
+def construct_blender_domain(blender_downscale,vgrid_f="vgrids.in"):
+    ''' Construct BlenderGeoDomain object from the grid file of an fmtomo run.
 
     blender_downscale | <float> | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
     '''
     # Identify the number of nodes in each direction in the velocity grid.
     with open("vgridsref.in") as infile:
         vdata = infile.read().split("\n")
-    n_vz,n_vlat,n_vlon = parse_in_line(vdata[1])
-    # Compute the extent in each direction from the propogation grid.
-    with open("propgrid.in") as infile:
-        pdata = infile.read().split("\n")
-    n_pz,n_plat,n_plon = parse_in_line(pdata[0])
-    d_pz,d_plat,d_plon = parse_in_line(pdata[1])
-    pz0,plat0,plon0 = parse_in_line(pdata[2])
-    plat_range = n_plat * d_plat
-    plon_range = n_plon * d_plon
-    pz_range = n_pz * d_pz
-    return BlenderGeoDomain(plat0,plat_range,plon0,plon_range,-pz0,pz_range,n_plat,n_plon,n_pz,blender_downscale)
+    # y (radians) -> lat (degrees), x (radians) -> lon (degrees)
+    n_z,n_y,n_x = parse_in_line(vdata[1],int)
+    dz,dy,dx = parse_in_line(vdata[2],float)
+    z0,y0,x0 = parse_in_line(vdata[3],float)
+    dy,dx,y0,x0 = (np.degrees(p) for p in [dy,dx,y0,x0])
+    get_bounds = lambda n,d,p0 : p0 + d * np.array([1,n-2])
+    z0,z1 = get_bounds(n_z,dz,z0)
+    z0 -= r_earth
+    z1 -= r_earth
+    lat0,lat1 = get_bounds(n_y,dy,y0)
+    lon0,lon1 = get_bounds(n_x,dx,x0)
+    BGD = BlenderGeoDomain(lat0=lat0,lat1=lat1,
+                           lon0=lon0,lon1=lon1,
+                           z0=z0,z1=z1,
+                           n_lon=n_x,n_lat=n_y,n_z=n_z,
+                           blender_downscale=blender_downscale)
+    return BGD
 
 def make_maps(blender_domain,map_downscale=100):
     ''' Generate vector (svg) map covering the horizontal extent of the 3d velocity model.
@@ -419,25 +381,44 @@ def make_maps(blender_domain,map_downscale=100):
     blender_domain | <BlenderGeoDomain> | BlenderGeoDomain object for the velocity model and 3D model domains.
     map_downscale  | <int>              | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
 
-    Returns: <int> | map_downscale
+    Returns: None
     '''
     # Write the GMT map plotting script if not already present.
     if not os.path.exists("blender-plot.sh"):
         with open("blender-plot.sh","w") as outfile:
             outfile.write("""bounds=$1
-    width=$2
+width=$2
+height=$3
 
-    gmt begin map pdf
-    gmt coast -W1p,black -A100 -JM${width}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0
-    gmt end
+gmt begin map pdf
+gmt coast -W1p,black -A100 -JX${width}c/${height}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0
+gmt end
 
-    inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg""")
+inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg""")
     # Execute the map plotting script to cover the relevant domain.
-    subprocess.call(["bash","blender-plot.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ns_range/map_downscale)])
-    return map_downscale
+    # N-S and E-W range are redundant for the Blender workflow (as long as they are strongly downscaled) but make sure that the map can be viewed at roughly the correct aspect ratio outside of this workflow. map_downscale is an arbitrary, large number here and is not used to set dimensions here (only the SVG internal coordinate system).
+    subprocess.call(["bash","blender-plot.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ew_range/map_downscale),"%.2f" % (blender_domain.ns_range/map_downscale)])
+    # This filename shouldn't need changing otherwise this workflow will break at the Blender loading stage also.
+    map_svg = "map.svg"
+    # Load the contents of the converted svg file.
+    with open(map_svg) as infile:
+        svg = infile.read()
+    # Read the svg tag properties (referred to as the header here).
+    svg_header = svg_header_original = re.search("<svg[\S\s]+?>",svg).group(0)
+    # Update svg dimensions with the blender model domain dimensions (in mm) after reversible map downscaling.
+    m2mm = 1e3
+    effective_scale = m2mm/map_downscale
+    width = blender_domain.blender_ew_range*effective_scale
+    height = blender_domain.blender_ns_range*effective_scale
+    svg_header = re.sub("width=\"(.*?)\"","width=\"%.2fmm\"" % width,svg_header)
+    svg_header = re.sub("height=\"(.*?)\"","height=\"%.2fmm\"" % height,svg_header)
+    # Update SVG file with updated dimensions.
+    with open(map_svg,"w") as outfile:
+        outfile.write(svg.replace(svg_header_original,svg_header))
+    return
 
 def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
-    ''' Execute 3D plotting for a temp dir containing all the necessary grid files (at least vgrids.in, vgridsref.in and propgrid.in, plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
+    ''' Execute 3D plotting for a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
 
     blender_downscale | <float>                     | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
     isosurface_specs  | <dict> {<float>:<Material>} | isosurface plotting specifications in dictionary format: {isosurface level : material to apply to isosurface}.
@@ -467,7 +448,8 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
             for true_f,ref_f in zip(vgridstrue_fs,vgridsref_fs):
                 dv_true = process_dv(true_f,blender_domain,"%s.obj" % true_f,isosurface_specs,name_append="true",vgrid_ref=ref_f,upsample_factor=5)
         # Create vector GMT map for the fmtomo model.
-        map_downscale = make_maps(blender_domain)
+        map_downscale = 100
+        make_maps(blender_domain,map_downscale)
         # Dump a bunch of parameters for passing on to the model loading code to be run via Blender.
         with open("tmp.txt","w") as outfile:
             outfile.write(" ".join([str(map_downscale),str(blender_domain.blender_z_range),
