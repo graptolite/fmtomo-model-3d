@@ -140,6 +140,57 @@ class WavefrontObj():
         if mtl_f:
             self.cmd_list.append("mtllib %s" % mtl_f)
         return
+    def add_height_map(self,height_matrix,z_interval,translate=[0,0,0],object_name=""):
+        ''' Add a height map surface spanning the entire 3D model's map-view extent to the obj.
+
+        height_matrix | <np.array>       | 2D array of heights spanning the 3D model's map extent (and with the same orientation).
+        z_interval    | <float>          | vertical units of the heightmap relative to blender's 1 unit = 1 m conversion.
+        translate     | <list> [<float>] | x,y,z offset of the heightmap.
+        object_name   | <str>            | name of the heightmap display in the Blender layers panel.
+
+        Returns: None
+        '''
+        # Avoid adding blank height matrices.
+        if all(np.isnan(height_matrix).flatten()):
+            return
+        # Declare the object's name in the command list.
+        self.cmd_list.append("o %s" % object_name)
+        # Pre-check that the height matrix is rectangular.
+        n_rows = len(height_matrix)
+        const_cols = len(set([len(row) for row in height_matrix])) == 1
+        if const_cols:
+            n_cols = len(height_matrix[0])
+        else:
+            print("Error: non-constant number of columns for the rows of the matrix")
+        # Compute the x and y intervals in the obj model's domain.
+        x_interval = self.dimensions[0]/n_rows
+        y_interval = self.dimensions[1]/n_cols
+        # Add vertex commands.
+        for i,row in enumerate(height_matrix):
+            for j,z in enumerate(row):
+                coords = [i*x_interval+translate[0],z*z_interval+translate[2],-j*y_interval+translate[1]]
+                self.cmd_list.append("v %.2f %.2f %.2f" % tuple(coords))
+        # Add face/surface commands.
+        for i in range(n_rows-1):
+            for j in range(n_cols-1):
+                near_nans = [np.isnan(height_matrix[i,j]),
+                             np.isnan(height_matrix[i+1,j]),
+                             np.isnan(height_matrix[i+1,j+1]),
+                             np.isnan(height_matrix[i+1,j-1]),
+                             np.isnan(height_matrix[i-1,j]),
+                             np.isnan(height_matrix[i-1,j+1]),
+                             np.isnan(height_matrix[i-1,j-1]),
+                             np.isnan(height_matrix[i,j+1]),
+                             np.isnan(height_matrix[i,j-1]),
+                             ]
+                # Avoid adding a face if self or neighbouring points (in square ring) have nan values).
+                if not any(near_nans):
+                    c = i*n_cols+self.vert_counter + j
+                    face = [c,c+1,c+n_cols,c+1+n_cols]
+                    self.cmd_list.append("f %u %u %u" % tuple(face[:-1]))
+                    self.cmd_list.append("f %u %u %u" % tuple(face[1:]))
+        self.vert_counter += height_matrix.shape[0]*height_matrix.shape[1]
+        return
     def add_isosurface(self,grid,isosurface_level,translate=[0,0,0],name_append=""):
         ''' Add an isovalue surface from a 3D grid of values spanning the 3D model's extent to the obj.
 
@@ -400,11 +451,24 @@ inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg""")
     subprocess.call(["bash","blender-plot.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ew_range/map_downscale),"%.2f" % (blender_domain.ns_range/map_downscale)])
     # This filename shouldn't need changing otherwise this workflow will break at the Blender loading stage also.
     map_svg = "map.svg"
-    # Load the contents of the converted svg file.
-    with open(map_svg) as infile:
+    # Fix the scale of the SVG output to be directly loadable into Blender.
+    fix_svg_scale(map_svg,blender_domain,map_downscale)
+    return
+
+def fix_svg_scale(svg_f,blender_domain,map_downscale):
+    ''' Modify the SVG header of a file to match its size to that specified by the BlenderGeoDomain.
+
+    svg            | <str>              | name of the svg input file.
+    blender_domain | <BlenderGeoDomain> | BlenderGeoDomain object for the velocity model and 3D model domains.
+    map_downscale  | <int>              | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
+
+    Returns: None
+    '''
+    # Load the contents of the svg file.
+    with open(svg_f) as infile:
         svg = infile.read()
     # Read the svg tag properties (referred to as the header here).
-    svg_header = svg_header_original = re.search("<svg[\S\s]+?>",svg).group(0)
+    svg_header = svg_header_original = re.search(r"<svg[\S\s]+?>",svg).group(0)
     # Update svg dimensions with the blender model domain dimensions (in mm) after reversible map downscaling.
     m2mm = 1e3
     effective_scale = m2mm/map_downscale
@@ -413,17 +477,19 @@ inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg""")
     svg_header = re.sub("width=\"(.*?)\"","width=\"%.2fmm\"" % width,svg_header)
     svg_header = re.sub("height=\"(.*?)\"","height=\"%.2fmm\"" % height,svg_header)
     # Update SVG file with updated dimensions.
-    with open(map_svg,"w") as outfile:
+    with open(svg_f,"w") as outfile:
         outfile.write(svg.replace(svg_header_original,svg_header))
     return
 
-def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
-    ''' Execute 3D plotting for a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
+def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="blender_load_tomo.py",force_rerun=False,map_downscale=100):
+    ''' Execute preprocessing and Blender script execution in a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
 
     blender_downscale | <float>                     | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
     isosurface_specs  | <dict> {<float>:<Material>} | isosurface plotting specifications in dictionary format: {isosurface level : material to apply to isosurface}.
     render            | <bool>                      | whether to autorender (looking from SE, SW, NW, NE directions).
     open_gui          | <bool>                      | whether to launch the Blender GUI.
+    blender_script    | <str>                       | path to script to load into Blender.
+    map_downscale     | <int>                       | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
     '''
     # Move to the temporary directory, which should have the
     if not os.path.exists("tmp"):
@@ -432,7 +498,7 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
     # Get a list of obj files in the tmp dir.
     fs_obj = [f for f in os.listdir() if f.endswith(".obj")]
     # Only remake obj files if there are no obj files in there already.
-    if len(fs_obj) == 0:
+    if len(fs_obj) == 0 or force_rerun:
         # Create an fmtomo-Blender domain mapping using the grid files in the temp dir.
         blender_domain = construct_blender_domain(blender_downscale)
         # Split the velocity grids as necessary
@@ -448,16 +514,27 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
             for true_f,ref_f in zip(vgridstrue_fs,vgridsref_fs):
                 dv_true = process_dv(true_f,blender_domain,"%s.obj" % true_f,isosurface_specs,name_append="true",vgrid_ref=ref_f,upsample_factor=5)
         # Create vector GMT map for the fmtomo model.
-        map_downscale = 100
         make_maps(blender_domain,map_downscale)
-        # Dump a bunch of parameters for passing on to the model loading code to be run via Blender.
-        with open("tmp.txt","w") as outfile:
-            outfile.write(" ".join([str(map_downscale),str(blender_domain.blender_z_range),
-                                    str(blender_domain.blender_ew_range),str(blender_domain.blender_ns_range),
-                                    str(int(render)),str(int(is_recovery_test()))]))
+    # Dump a bunch of parameters for passing on to the model loading code to be run via Blender.
+    with open("tmp.txt","w") as outfile:
+        outfile.write(" ".join([str(map_downscale),str(blender_domain.blender_z_range),str(blender_domain.z1/blender_domain.blender_downscale),
+                                str(blender_domain.blender_ew_range),str(blender_domain.blender_ns_range),
+                                str(int(render)),str(int(is_recovery_test()))]))
     os.chdir("../")
+    # Run blender on the processing script.
+    exec_blender_with_script(blender_script,open_gui)
+    return
+
+def exec_blender_with_script(script,open_gui=True):
+    ''' Execute Blender with a Blender Python script, and choose whether to open the Blender GUI or not. This also handles Blenders that are on the console bin path but not installed onto the default bin path.
+
+    script   | <str>  | path to the Blender Python script.
+    open_gui | <bool> | whether to open the Blender GUI or not.
+
+    Returns: None
+    '''
     # Default list of commands used to run the fmtomo model loading code through Blender.
-    cmd_list = ["blender","-P","blender_load_tomo.py"]
+    cmd_list = ["blender","-P",script]
     # Avoid opening the Blender GUI if requested.
     if not open_gui:
         cmd_list.append("--background")
@@ -467,3 +544,4 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui):
     except:
         # Otherwise load blender under the assumption of a bash alias.
         subprocess.call(["/bin/bash","-i","-c"] + [" ".join(cmd_list)])
+    return

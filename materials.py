@@ -21,7 +21,7 @@ FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity an
 # Material/color configuration for the Blender models.
 
 # RGB color for the map placed at the top of the 3D model domain. Each channel's value ranges from 0 to 1.
-upper_map_rgb = (0,1,0) # Green
+upper_map_rgb = (1,1,1) # White
 # RGB color for the map placed at the bottom of the 3D model domain. Each channel's value ranges from 0 to 1.
 lower_map_rgb = (1,0,0) # Red
 # RGBA color for the Blender model's background. Each channel's value ranges from 0 to 1.
@@ -35,6 +35,7 @@ try:
     materials = {"blue":dict(rgb=[0,0,255]),
                  "lightblue_translucent":dict(rgb=[30,30,255],alpha=0.5),
                  "red":dict(rgb=[255,0,0]),
+                 "slab_green":dict(rgb=[3,132,79]),
                  }
 
     materials = {k:Material(k,**spec) for k,spec in materials.items()}

@@ -4,9 +4,11 @@ A wireframe map will be placed at the top and bottom of the model volume.
 
 # Dependencies
 
-Linux system with `gmt`, `inskcape` and `blender` installed. `fmtomo` working directory using default velocity grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test).
+Linux system with `gmt`, `inskcape` and `blender` (Blender 4.3.2) installed. `fmtomo` working directory using default velocity grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test).
 
 Python packages: `json`, `numpy`, `os`, `pandas`, `re`, `scipy`, `shutil`, `skimage`, `subprocess`, `sys`, `tkinter`
+
+Python packages within Blender (e.g., via https://blender.stackexchange.com/a/122337 (where the python executable might instead be python3 or python3.11 etc.) or https://stackoverflow.com/a/68964354) only if `./scripting/script.py` is to be run: `pyyaml`.
 
 # Basic Usage
 After running `gui.py`, a Tkinter GUI window will pop up with various options.
@@ -34,3 +36,6 @@ The wireframe map colours can be set in `materials.py` by changing `upper_map_rg
 The render background can be set using the `background` RGBA fractional tuple.
 
 Some materials for isosurfaces are defined already in the `materials` variable. More can be defined in the format `{<name> : dict(rgb=<RGB>,alpha=<alpha [optional]>)}` where the RGB tuple is not fractional (i.e. (255,255,255) = 100% R, 100% G, 100% B).
+
+# Script Usage
+The script (`python script.py` in the `./scripting` folder) can be used to investigate tomography models in the context of subduction zones as it also handles the loading of Slab depth models from Slab2.0 (Hayes 2018; https://www.usgs.gov/data/slab2-a-comprehensive-subduction-zone-geometry-model). Depths can also be plotted. The controls for this script are found in `./scripting/config.yml`.

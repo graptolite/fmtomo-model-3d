@@ -23,7 +23,7 @@ FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity an
 import bpy
 import os
 import sys
-import numpy as np
+import math
 # Ensure the current path is recognised by Blender Python as containing loadable modules.
 sys.path.insert(0,"./")
 import materials
@@ -72,7 +72,15 @@ def new_collection(name):
     bpy.context.scene.collection.children.link(coll)
     return coll
 
-def import_svg(scale,map_svg="map.svg"):
+def import_svg(scale,map_svg="map.svg",shadow=False):
+    ''' Load an SVG into Blender at a specified map scaling.
+
+    scale   | <float> | scale to apply to the svg after importing into Blender.
+    map_svg | <str>   | file to import into Blender.
+    shadow  | <bool>  | whether the imported SVG is to cast shadows or not.
+
+    Returns: <bpy.types.Object> | the imported svg as a Blender object.
+    '''
     # Import SVG map.
     bpy.ops.import_curve.svg(filepath=map_svg)
     # Join all individual SVG beziers into one bezier
@@ -82,12 +90,70 @@ def import_svg(scale,map_svg="map.svg"):
     bpy.context.view_layer.objects.active = o
     bpy.ops.object.join()
     combined_map = bpy.context.object
-    combined_map.visible_shadow = False
+    # Set shadow casting option.
+    combined_map.visible_shadow = shadow
+    # Set scale.
     combined_map.scale[0] = scale
     combined_map.scale[1] = scale
+    # Give area to the lines for render visibility.
     combined_map.data.bevel_depth = 1.5*1e-2/scale
     combined_map.data.twist_mode = "Z_UP"
     return combined_map
+
+def color_material(material_key,RGBA,brightness_on=True):
+    ''' Give a material an RGBA color with a "glowing" appearance where possible (for the Blender version and for whether nodes usage is turned on) if brightness_on is requested, otherwise just set the color.
+
+    material_key  | <str>            | key of the material to assign the color to.
+    RGBA          | <list> [<float>] | RGBA (in 0-1 range) values to color the material with.
+    brightness_on | <bool>           | whether to attempt to change additional options to give the material a "glowing" appearance.
+
+    Returns: None
+    '''
+    # Identify the material using the key.
+    mtl = bpy.data.materials[material_key]
+    if brightness_on:
+        # Attempt to assign the color in the way requested.
+        try:
+            # Set the emission strength to 1.
+            mtl.node_tree.nodes["Principled BSDF"].inputs[28].default_value = 1
+            # Set the emission color.
+            mtl.node_tree.nodes["Principled BSDF"].inputs[27].default_value = RGBA
+            # Specular off.
+            mtl.node_tree.nodes["Principled BSDF"].inputs[13].default_value = 0
+            # Roughness off.
+            mtl.node_tree.nodes["Principled BSDF"].inputs[2].default_value = 0
+            # Basecolor matching.
+            mtl.node_tree.nodes["Principled BSDF"].inputs[0].default_value = mtl.node_tree.nodes["Principled BSDF"].inputs[27].default_value
+            # If setting these options worked, return early.
+            return
+        except:
+            pass
+    # If no brightness requested or setting it failed, set the color in a node-less manner.
+    mtl.diffuse_color = RGBA
+    # Set roughness to 1 to give a matte appearance.
+    mtl.roughness = 1
+    return
+
+def render_all(camera,append=""):
+    ''' Autorender the 3D model looking from the 4 ordinal directions, and save these renders with the direction of looking in the filename.
+
+    camera | <bpy.types.Camera> | camera to use for rendering.
+    append | <str>              | string to append to the end of the image file saving the render.
+
+    Returns: <None>
+    '''
+    cam.rotation_euler = [math.radians(60),0,0]
+    render_conf = {"SW":(-math.radians(45),[-x0,-y0,max_z+2]),
+                   "SE":(math.radians(45),[max_ew+x0,-y0,max_z+2]),
+                   "NE":(math.radians(135),[max_ew+x0,max_ns+y0,max_z+2]),
+                   "NW":(math.radians(225),[-x0,max_ns+y0,max_z+2]),
+                   }
+    for orientation,(z_rot,loc) in render_conf.items():
+        cam.rotation_euler[2] = z_rot
+        cam.location = loc
+        bpy.context.scene.render.filepath = os.path.join("render-%s%s.png" % (orientation,append))
+        bpy.ops.render.render(write_still=True)
+    return
 
 # Remove all default items upon Blender load.
 delete_all()
@@ -105,27 +171,26 @@ deselect_all()
 
 # Move to the temp dir.
 os.chdir("tmp")
+# Load parameters.
+with open("tmp.txt") as infile:
+    scale,max_z,max_depth,max_ew,max_ns,render,is_recovery = map(float,infile.read().split(" "))
+render = bool(int(render))
 # Declare working dir.
 basefolder = os.getcwd()
 print(basefolder)
 
-# Load parameters.
-with open("tmp.txt") as infile:
-    scale,max_z,max_ew,max_ns,render,is_recovery = map(float,infile.read().split(" "))
-render = bool(int(render))
-
 # Import SVG map.
-map_svg = "map.svg"
-combined_map = import_svg(scale,map_svg)
+combined_map = import_svg(scale,"map.svg")
 combined_map.location[2] = max_z
 
 # Upper bound map.
 l_map_mtl = "map-mtl"
+# New material.
 map_mtl = bpy.data.materials.new(l_map_mtl)
-map_mtl.use_nodes = False
+map_mtl.use_nodes = True
 combined_map.data.materials.append(map_mtl)
-map_mtl.diffuse_color = (*materials.upper_map_rgb,1)
-map_mtl.roughness = 1
+# Assign color to material.
+color_material(l_map_mtl,(*materials.upper_map_rgb,1))
 
 # Lower bound map
 bpy.ops.object.duplicate()
@@ -137,8 +202,7 @@ map_mtl_lower.use_nodes = False
 # Clear material from duplication of pre-existing object.
 combined_map_lower.data.materials.clear()
 combined_map_lower.data.materials.append(map_mtl_lower)
-map_mtl_lower.diffuse_color = (*materials.lower_map_rgb,1)
-map_mtl_lower.roughness = 1
+color_material(l_map_mtl_lower,(*materials.lower_map_rgb,1))
 
 deselect_all()
 
@@ -157,6 +221,7 @@ for f in files:
         for o in bpy.context.selected_objects:
             active_collection.objects.link(o)
             if "vgrids.in" in f:
+                # Apply smoothing to isosurfaces if of the velocity grid.
                 smooth_mod = o.modifiers.new(name="Smooth",type='SMOOTH')
                 smooth_mod.factor = 0.5
                 smooth_mod.iterations = 2
@@ -179,7 +244,7 @@ cam = bpy.context.scene.objects.get("Camera")
 # Different coord convention.
 x0,y0 = max_ns/2,max_ew/2
 # Position the camera.
-cam.rotation_euler = [np.pi/3,0,-np.pi/4]
+cam.rotation_euler = [math.pi/3,0,-math.pi/4]
 cam.location = [-x0,-y0,max_z+2]
 optics_col.objects.link(cam)
 bpy.context.scene.render.resolution_x = 1024
@@ -198,31 +263,11 @@ else:
     # Set black background
     bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[0].default_value = background
 
-def render_all(append=""):
-    ''' Autorender the 3D model looking from the 4 ordinal directions, and saves these renders with the direction of looking in the filename.
-
-    append | <str> | string to append to the end of the image file saving the render.
-
-    Returns: <None>
-    '''
-    cam.rotation_euler = [np.radians(60),0,0]
-    render_conf = {"SW":(-np.radians(45),[-x0,-y0,max_z+2]),
-                   "SE":(np.radians(45),[max_ew+x0,-y0,max_z+2]),
-                   "NE":(np.radians(135),[max_ew+x0,max_ns+y0,max_z+2]),
-                   "NW":(np.radians(225),[-x0,max_ns+y0,max_z+2]),
-                   }
-    for orientation,(z_rot,loc) in render_conf.items():
-        cam.rotation_euler[2] = z_rot
-        cam.location = loc
-        bpy.context.scene.render.filepath = os.path.join("render-%s%s.png" % (orientation,append))
-        bpy.ops.render.render(write_still=True)
-    return
-
 if render:
     # If rendering is requested:
     if not is_recovery:
         # Render the recovered velocity structures.
-        render_all()
+        render_all(cam)
     else:
         colls = [c.name for c in bpy.data.collections]
         # Get list of collections containing recovered velocity structure.
@@ -240,7 +285,7 @@ if render:
         for c in coll_true:
             bpy.data.collections[c].hide_render = True
         # Render the recovered velocity structures.
-        render_all("-recovered")
+        render_all(cam,"-recovered")
 
 deselect_all()
 # Move back out of the temp dir.
