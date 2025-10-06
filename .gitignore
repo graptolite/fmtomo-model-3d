@@ -1,3 +1,9 @@
 tmp/*
+scripting/tmp/*
+scripting/Slab2_TXT
+scripting/Slab2_TXT/*
 __pycache__/*
 *.in
+*.json
+*.pdf
+*.png

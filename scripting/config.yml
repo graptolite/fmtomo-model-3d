@@ -1,0 +1,19 @@
+plot_3d:
+    blender_downscale: 100
+    render: true
+    open_gui: false
+    slab2_txt_dir: ./Slab2_TXT
+    # Isosurfaces in format
+    # <name of isosurface (must be unique)>:
+    #        dv: <isosurface level>
+    #        RGB: <RGB 0-255 color of the isosurface>
+    isosurfaces:
+        slab:
+            dv: 0.12
+            RGB: [3,132,79]
+    # Depths plotting specifications in format:
+    # <depth in km>: <RGBA 0-1 color of the depth>
+    # Leave blank for none.
+    blender_depths:
+        200: [0,1,1,1] # Cyan
+        300: [1,0,1,1] # Magenta
