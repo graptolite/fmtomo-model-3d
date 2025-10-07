@@ -171,9 +171,10 @@ def construct_slabs(domain,interp_interval=0.25,obj_file="./tmp/slabs.obj",criti
     slab_obj.write_obj(obj_file)
     return
 
-# Clean files from the tmp dir for fresh reprocessing.
-for f in os.listdir("tmp"):
-    os.remove(os.path.join("tmp",f))
+if os.path.exists("tmp"):
+    # Clean files from the tmp dir for fresh reprocessing.
+    for f in os.listdir("tmp"):
+        os.remove(os.path.join("tmp",f))
 
 # Construct a Blender domain from the vgrids.in file in the current directory.
 blender_domain = construct_blender_domain(blender_downscale)
