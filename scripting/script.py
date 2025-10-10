@@ -175,7 +175,8 @@ if os.path.exists("tmp"):
     # Clean files from the tmp dir for fresh reprocessing.
     for f in os.listdir("tmp"):
         os.remove(os.path.join("tmp",f))
-
+else:
+    os.mkdir("tmp")
 # Construct a Blender domain from the vgrids.in file in the current directory.
 blender_domain = construct_blender_domain(blender_downscale)
 # Attempt to load the required grid files.
@@ -190,7 +191,9 @@ if os.path.exists(v_true):
 construct_slabs(blender_domain,interp_interval=0.1,cmap_name="magma_r",cmap_norm_add=2,cmap_idx_offset=1)
 
 # If an additional plotting file exists, execute that file with a large degree of map downscaling and copy over the output svg it generates to the tmp dir.
-map_downscale = 100
+# To avoid rounding errors, the map_downscale factor should not be set to too high a value, e.g., target a map width of around 10 cm.
+target_map_width = 10 # cm
+map_downscale = blender_domain.ew_range/target_map_width
 if os.path.exists("blender-plot-frame.sh"):
     subprocess.call(["bash","blender-plot-frame.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ew_range/map_downscale),"%.2f" % (blender_domain.ns_range/map_downscale)])
     fix_svg_scale("frame.svg",blender_domain,map_downscale)

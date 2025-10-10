@@ -481,7 +481,7 @@ def fix_svg_scale(svg_f,blender_domain,map_downscale):
         outfile.write(svg.replace(svg_header_original,svg_header))
     return
 
-def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="blender_load_tomo.py",force_rerun=False,map_downscale=100):
+def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="blender_load_tomo.py",force_rerun=False,map_downscale=None):
     ''' Execute preprocessing and Blender script execution in a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
 
     blender_downscale | <float>                     | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
@@ -497,10 +497,14 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="b
     os.chdir("tmp")
     # Get a list of obj files in the tmp dir.
     fs_obj = [f for f in os.listdir() if f.endswith(".obj")]
+    # Create an fmtomo-Blender domain mapping using the grid files in the temp dir.
+    blender_domain = construct_blender_domain(blender_downscale)
+    if not map_downscale:
+        # If no map downscaling provided, set one. To avoid rounding errors, the map_downscale factor should not be set to too high a value, e.g., target a map width of around 10 cm.
+        target_map_width = 10 # cm
+        map_downscale = blender_domain.ew_range/target_map_width
     # Only remake obj files if there are no obj files in there already.
     if len(fs_obj) == 0 or force_rerun:
-        # Create an fmtomo-Blender domain mapping using the grid files in the temp dir.
-        blender_domain = construct_blender_domain(blender_downscale)
         # Split the velocity grids as necessary
         vgrids_fs = split_vgrids("vgrids.in")
         vgridsref_fs = split_vgrids("vgridsref.in")
