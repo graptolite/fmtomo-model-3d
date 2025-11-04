@@ -28,6 +28,7 @@ import os
 import json
 import re
 import subprocess
+import shutil
 
 r_earth = 6371
 
@@ -436,16 +437,7 @@ def make_maps(blender_domain,map_downscale=100):
     '''
     # Write the GMT map plotting script if not already present.
     if not os.path.exists("blender-plot.sh"):
-        with open("blender-plot.sh","w") as outfile:
-            outfile.write("""bounds=$1
-width=$2
-height=$3
-
-gmt begin map pdf
-gmt coast -W1p,black -A100 -JX${width}c/${height}c -R$bounds -Bf --MAP_FRAME_TYPE=plain --MAP_TICK_LENGTH=0
-gmt end
-
-inkscape --without-gui --file=map.pdf --export-plain-svg=map.svg""")
+        shutil.copy("../blender-plot.sh","blender-plot.sh")
     # Execute the map plotting script to cover the relevant domain.
     # N-S and E-W range are redundant for the Blender workflow (as long as they are strongly downscaled) but make sure that the map can be viewed at roughly the correct aspect ratio outside of this workflow. map_downscale is an arbitrary, large number here and is not used to set dimensions here (only the SVG internal coordinate system).
     subprocess.call(["bash","blender-plot.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ew_range/map_downscale),"%.2f" % (blender_domain.ns_range/map_downscale)])
@@ -491,10 +483,12 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="b
     blender_script    | <str>                       | path to script to load into Blender.
     map_downscale     | <int>                       | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
     '''
-    # Move to the temporary directory, which should have the
-    if not os.path.exists("tmp"):
-        os.mkdir("tmp")
-    os.chdir("tmp")
+    # Avoid chdir into tmp if already there (e.g. due to a previous failure to load).
+    if os.path.basename(os.path.dirname(os.getcwd())) != "tmp":
+        # Move to the temporary directory
+        if not os.path.exists("tmp"):
+            os.mkdir("tmp")
+        os.chdir("tmp")
     # Get a list of obj files in the tmp dir.
     fs_obj = [f for f in os.listdir() if f.endswith(".obj")]
     # Create an fmtomo-Blender domain mapping using the grid files in the temp dir.

@@ -96,7 +96,8 @@ class GUI(Tk):
                 if os.path.exists(v_true):
                     shutil.copy(v_true,"tmp")
                 self.update_msg("Folder successfully loaded")
-            except FileNotFoundError:
+            except FileNotFoundError as e:
+                print(e)
                 self.update_msg("Folder does not contain one or more of vgrids.in or vgridsref.in")
         else:
             self.update_msg("Folder does not exist.")
