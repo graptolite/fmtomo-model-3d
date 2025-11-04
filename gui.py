@@ -21,8 +21,8 @@ FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity an
 from tkinter import *
 import os
 import shutil
-from materials import materials
 from processing_functions import *
+from materials import materials
 
 if not os.path.exists("tmp"):
     os.mkdir("tmp")
@@ -96,7 +96,7 @@ class GUI(Tk):
                 if os.path.exists(v_true):
                     shutil.copy(v_true,"tmp")
                 self.update_msg("Folder successfully loaded")
-            except:
+            except FileNotFoundError:
                 self.update_msg("Folder does not contain one or more of vgrids.in or vgridsref.in")
         else:
             self.update_msg("Folder does not exist.")
