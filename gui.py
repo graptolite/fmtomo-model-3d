@@ -27,6 +27,8 @@ from materials import materials
 if not os.path.exists("tmp"):
     os.mkdir("tmp")
 
+PARENT_DIR = os.getcwd()
+
 class GUI(Tk):
     def __init__(self):
         super().__init__()
@@ -85,6 +87,9 @@ class GUI(Tk):
         # Validate that the fmtomo working dir exists.
         if fp and os.path.exists(fp):
             try:
+                # Make sure not in tmp dir already e.g. due to previous error.
+                if os.path.basename(os.path.dirname(os.getcwd())) == "tmp":
+                    os.chdir("../")
                 # Clear any old files that may be present in the temp dir.
                 for f in os.listdir("tmp"):
                     os.remove(os.path.join("tmp",f))
@@ -117,10 +122,11 @@ class GUI(Tk):
         isosurface_specs = {isosurface:material}
         # Try running the 3D modelling.
         try:
+            os.chdir(PARENT_DIR)
             exec_3d(blender_downscale,isosurface_specs,render,open_gui)
             self.update_msg("Finished blender rendering")
-        except FileNotFoundError:
-            self.update_msg("No FMTOMO folder loaded yet, or input params are missing")
+        except FileNotFoundError as e:
+            self.update_msg("No FMTOMO folder loaded yet, or input params are missing; %s" % e)
         return
     def stack_widgets(self,widget_list):
         ''' Stack tkinter widgets above each other.

@@ -443,6 +443,8 @@ def make_maps(blender_domain,map_downscale=100):
     subprocess.call(["bash","blender-plot.sh","%.2f/%.2f/%.2f/%.2f" % blender_domain.get_map_bounds(),"%.2f" % (blender_domain.ew_range/map_downscale),"%.2f" % (blender_domain.ns_range/map_downscale)])
     # This filename shouldn't need changing otherwise this workflow will break at the Blender loading stage also.
     map_svg = "map.svg"
+    if not os.path.exists(map_svg):
+        raise FileNotFoundError("Map could not be generated. Make sure Inkscape is installed to the system path.")
     # Fix the scale of the SVG output to be directly loadable into Blender.
     fix_svg_scale(map_svg,blender_domain,map_downscale)
     return
