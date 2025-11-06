@@ -24,6 +24,9 @@ Once FMTOMO files are loaded, the options for the 3D modelling can be set:
 
 Once all the options are set as desired, the button "Load 3D" can be pressed to create and load the 3D model via Blender.
 
+# XYZ format dv data
+XYZ (lon, lat, depth) style dv data can be converted into FMTOMO vgrids format using `xyz2vgrid.py` after adjusting the parameters `xyz_f`, `column_order`, and `sep` as necessary. The FMTOMO format velocity grids will be output into the folder specified by `out_folder`, which can be loaded from by `gui.py`.
+
 # More Involved Usage
 Different parameters can be changed for different types of plot.
 
