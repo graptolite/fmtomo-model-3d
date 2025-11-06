@@ -1,5 +1,23 @@
 #!/usr/bin/env python3
 
+''' Script to convert xyz format dv models to FMTOMO vgrid format.
+e.g.
+
+lat,lon,dep,dv
+0,0,0,0.1
+1,0,0,0.0
+2,0,0,-0.2
+...
+0,1,0,0.0
+1,1,0,0.1
+2,1,0,0.1
+...
+0,0,1,0.2
+1,0,1,-0.1
+2,0,1,0.0
+
+'''
+
 '''
 FMTOMO Result 3D Modelling | Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced by an FMTOMO run (i.e. with grid files in FMTOMO format).
     Copyright (C) 2025 Yingbo Li

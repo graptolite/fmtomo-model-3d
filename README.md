@@ -1,4 +1,4 @@
-Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced by an FMTOMO run (i.e. with grid files in FMTOMO format). Also options to automatically render the result looking from the SE, SW, NE and NW.
+Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced by an FMTOMO (https://github.com/nrawlinson/FMTOMO) run (i.e. with grid files in FMTOMO format). Also options to automatically render the result looking from the SE, SW, NE and NW.
 
 A wireframe map will be placed at the top and bottom of the model volume.
 
