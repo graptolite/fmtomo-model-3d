@@ -40,10 +40,12 @@ class GUI(Tk):
         inputs_w = 0.6
         self.inputs_frame.place(relheight=1,relwidth=inputs_w,relx=0,y=0)
         self.l_input = Label(self.inputs_frame,text="Input Filepath:",font=("bold"))
+        self.isosurface_val = DoubleVar(value=0.2)
+        self.l_isosurf = Label(self.inputs_frame,text="dv isosurface (km/s)")
+        self.process_ifaces = IntVar(value=0)
+        self.l_ifaces = Checkbutton(self.inputs_frame,text="Process interfaces",variable=self.process_ifaces,onvalue=1,offvalue=0)
         self.inp = Entry(self.inputs_frame)
         self.btn = Button(self.inputs_frame,text="Load files",width=10,height=1,command=self.load_files)
-        self.l_isosurf = Label(self.inputs_frame,text="dv isosurface (km/s)")
-        self.isosurface_val = DoubleVar(value=0.2)
         self.isosurface = Entry(self.inputs_frame,textvariable=self.isosurface_val)
         self.l_mat = Label(self.inputs_frame,text="material")
         self.material_val = StringVar(value=list(materials.keys())[0])
@@ -57,7 +59,9 @@ class GUI(Tk):
         self.blender_gui = Checkbutton(self.inputs_frame,text="Blender GUI",variable=self.open_gui,onvalue=1,offvalue=0)
         self.btn_3d = Button(self.inputs_frame,text="Load 3D",width=10,height=1,command=self.load_3d)
         input_widget_list = [self.l_isosurf,self.isosurface,
-                             self.l_input,self.inp,self.btn,
+                             self.l_input,self.inp,
+                             self.l_ifaces,
+                             self.btn,
                              self.l_mat,self.material,
                              self.l_downscale,self.blender_downscale,
                              self.render,self.blender_gui,
@@ -83,6 +87,7 @@ class GUI(Tk):
         '''
         # Retrieve the path to the fmtomo working dir.
         fp = self.inp.get()
+        process_ifaces = bool(self.process_ifaces.get())
         self.fp = fp
         # Validate that the fmtomo working dir exists.
         if fp and os.path.exists(fp):
@@ -93,13 +98,17 @@ class GUI(Tk):
                 # Clear any old files that may be present in the temp dir.
                 for f in os.listdir("tmp"):
                     os.remove(os.path.join("tmp",f))
+                fs = ["vgrids.in","vgridsref.in"]
                 # Attempt to load the required grid files.
-                for f in ["vgrids.in","vgridsref.in"]:
+                for f in fs:
                     shutil.copy(os.path.join(fp,f),"tmp")
                 # Load the optional grid file if present.
                 v_true = os.path.join(fp,"vgridstrue.in")
                 if os.path.exists(v_true):
                     shutil.copy(v_true,"tmp")
+                ifaces = os.path.join(fp,"interfaces.in")
+                if process_ifaces and os.path.exists(ifaces):
+                    shutil.copy(ifaces,"tmp")
                 self.update_msg("Folder successfully loaded")
             except FileNotFoundError as e:
                 print(e)
@@ -115,6 +124,7 @@ class GUI(Tk):
         self.update_msg("Loading 3D...")
         # Get all of the input and control parameters.
         isosurface = float(self.isosurface.get())
+        process_ifaces = bool(self.process_ifaces.get())
         material = materials[self.material_val.get()]
         blender_downscale = self.blender_downscale_val.get()
         render = bool(self.do_render.get())
@@ -123,7 +133,7 @@ class GUI(Tk):
         # Try running the 3D modelling.
         try:
             os.chdir(PARENT_DIR)
-            exec_3d(blender_downscale,isosurface_specs,render,open_gui)
+            exec_3d(blender_downscale,isosurface_specs,render,open_gui,process_ifaces)
             self.update_msg("Finished blender rendering")
         except FileNotFoundError as e:
             self.update_msg("No FMTOMO folder loaded yet, or input params are missing; %s" % e)
@@ -135,8 +145,8 @@ class GUI(Tk):
 
         Returns: <None>
         '''
-        for i,w in enumerate(widget_list):
-            w.grid(column=0,row=0+i)
+        for i,widget in enumerate(widget_list):
+            widget.grid(column=0,row=0+i)
         return
     def update_msg(self,text):
         ''' Replace the content of the message in the GUI with new text.

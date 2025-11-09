@@ -294,8 +294,8 @@ def relative_vgrid(vgrids_f,vgridsref_f):
     vs_ref = pd.read_csv(vgridsref_f,sep=r"\s+",names=["v","u_v"],skiprows=4)
     # Identify the (common) velocity grid shape.
     with open(vgrids_f) as infile:
-        shape = infile.read().split("\n")[1].split(" ")
-    shape = [int(s) for s in shape if s.strip()]
+        shape = infile.read().split("\n")[1]
+    shape = parse_in_line(shape,int)
     # Compute relative velocity at each grid point.
     vs = pd.DataFrame({"v":vs_inv["v"]-vs_ref["v"]})
     # Shape the structured 1D velocity grid list into a 3D grid array.
@@ -357,6 +357,43 @@ def split_vgrids(vgrid):
         files = [vgrid]
     return files
 
+def process_interfaces(interfaces,domain,obj_f,upsample_factor=1):
+    ''' Split fmtomo interfaces file to individual interfaces.
+
+    interfaces       | <str>                       | path to the interfaces file.
+    domain           | <BlenderGeoDomain>          | domain properties for the conversion of the velocity grid domain to 3D model domain. Used to ensure consistency between the interface plotting and velocity model plotting in this function.
+    obj_f            | <str>                       | obj filename for writing the 3D model output.
+    upsample_factor  | <int>                       | factor by which to upsample the interface grids velocity grid.
+    '''
+    # Initialize wavefront object with the 3D model dimensions.
+    obj = WavefrontObj(domain.get_dimensions())
+    # Load contents of interface file and identify the header and data.
+    with open(interfaces) as infile:
+        iface_data = infile.read().split("\n")
+        header,data = iface_data[:4],iface_data[4:]
+    # Identify number of interfaces.
+    n_ifaces = int(header[0].strip())
+    # Identify gridding of the interfaces.
+    n_y,n_x = parse_in_line(header[1],int)
+    # Load and separate the individual interfaces based on their gridding (total nodes).
+    df = pd.read_csv(interfaces,sep=r"\s+",names=["z","u_z"],skiprows=4)
+    interfaces = [df["z"].to_numpy()[int(n_y*n_x)*i:int(n_y*n_x)*(i+1)] for i in range(n_ifaces)]
+    # Reshape the interface grids to 2D.
+    shape = (n_y,n_x)
+    interface_2ds = [(iface.reshape(shape)[1:-1,1:-1]).T for iface in interfaces]
+    # Upsample interfaces using 2nd order spline interpolation if requested.
+    if upsample_factor > 1:
+        interface_2ds = [zoom(iface,upsample_factor,order=2) for iface in interface_2ds]
+    # Express interface depths relative to sea level.
+    interface_2ds = [-(r_earth-iface) for iface in interface_2ds]
+    # Iterate through interfaces.
+    for i,iface in enumerate(interface_2ds):
+        # Add interface heightmap. Note that since the interfaces heights are relative to sea level (i.e. reference point is *not a corner* of the model region as with the velocity grids), the translation takes the max depth rather than the depth range of the model. This acts to push the max depth of the model up to sea level for referencing the interface height maps.
+        obj.add_height_map(iface,1/domain.blender_downscale,translate=[0,0,-domain.z0/domain.blender_downscale],object_name="Iface %u" % i)
+    # Write the obj files.
+    obj.write_obj(obj_f)
+    return
+
 def process_dv(vgrid_f,domain,obj_f,isosurface_specs,name_append="",vgrid_ref="vgridsref.in",upsample_factor=1):
     ''' Process a velocity grid file in order to plot an isosurface of relative velocity (into an obj 3D model) from it with requested domain mappings.
 
@@ -401,6 +438,9 @@ def parse_in_line(l,t=float):
     '''
     return [t(x) for x in l.split(" ") if x.strip()]
 
+def get_bounds(n,d,p0):
+    return p0 + d * np.array([1,n-2])
+
 def construct_blender_domain(blender_downscale,vgrid_f="vgrids.in"):
     ''' Construct BlenderGeoDomain object from the grid file of an fmtomo run.
 
@@ -414,7 +454,6 @@ def construct_blender_domain(blender_downscale,vgrid_f="vgrids.in"):
     dz,dy,dx = parse_in_line(vdata[2],float)
     z0,y0,x0 = parse_in_line(vdata[3],float)
     dy,dx,y0,x0 = (np.degrees(p) for p in [dy,dx,y0,x0])
-    get_bounds = lambda n,d,p0 : p0 + d * np.array([1,n-2])
     z0,z1 = get_bounds(n_z,dz,z0)
     z0 -= r_earth
     z1 -= r_earth
@@ -475,15 +514,18 @@ def fix_svg_scale(svg_f,blender_domain,map_downscale):
         outfile.write(svg.replace(svg_header_original,svg_header))
     return
 
-def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="blender_load_tomo.py",force_rerun=False,map_downscale=None):
-    ''' Execute preprocessing and Blender script execution in a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test) copied over from an fmtomo working dir.
+def exec_3d(blender_downscale,isosurface_specs,render,open_gui,process_ifaces=False,blender_script="blender_load_tomo.py",force_rerun=False,map_downscale=None,upsample_factor=5,iface_upsample_factor=5):
+    ''' Execute preprocessing and Blender script execution in a temp dir containing all the necessary grid files (at least vgrids.in and vgridsref.in plus vgridstrue.in if the fmtomo working directory is for a recovery test, and interfaces.in if present) copied over from an fmtomo working dir.
 
-    blender_downscale | <float>                     | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
-    isosurface_specs  | <dict> {<float>:<Material>} | isosurface plotting specifications in dictionary format: {isosurface level : material to apply to isosurface}.
-    render            | <bool>                      | whether to autorender (looking from SE, SW, NW, NE directions).
-    open_gui          | <bool>                      | whether to launch the Blender GUI.
-    blender_script    | <str>                       | path to script to load into Blender.
-    map_downscale     | <int>                       | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
+    blender_downscale     | <float>                     | downscale to apply to the tomography model domain (after conversion into cartesian with km units) to get into a cartesian blender domain with m units. This can just be set to 100 in most cases.
+    isosurface_specs      | <dict> {<float>:<Material>} | isosurface plotting specifications in dictionary format: {isosurface level : material to apply to isosurface}.
+    render                | <bool>                      | whether to autorender (looking from SE, SW, NW, NE directions).
+    open_gui              | <bool>                      | whether to launch the Blender GUI.
+    process_ifaces        | <bool>                      | whether to process interfaces (if present).
+    blender_script        | <str>                       | path to script to load into Blender.
+    map_downscale         | <int>                       | a strong GMT map (document) downscale factor just to avoid too large a document dimension to be created by GMT (this downscaling will be reversed before plotting in Blender).
+    upsample_factor       | <int>                       | factor by which to upsample the 3D velocity grid.
+    iface_upsample_factor | <int>                       | factor by which to upsample the interface grids velocity grid.
     '''
     # Avoid chdir into tmp if already there (e.g. due to a previous failure to load).
     if os.path.basename(os.path.dirname(os.getcwd())) != "tmp":
@@ -509,10 +551,13 @@ def exec_3d(blender_downscale,isosurface_specs,render,open_gui,blender_script="b
             vgridstrue_fs = split_vgrids("vgridstrue.in")
         # Get isosurfaces for each of the grids.
         for grid_f,ref_f in zip(vgrids_fs,vgridsref_fs):
-            dv_rec = process_dv(grid_f,blender_domain,"%s.obj" % grid_f,isosurface_specs,name_append="recovered",vgrid_ref=ref_f,upsample_factor=5)
+            dv_rec = process_dv(grid_f,blender_domain,"%s.obj" % grid_f,isosurface_specs,name_append="recovered",vgrid_ref=ref_f,upsample_factor=upsample_factor)
+        # Process interfaces if they exist and are requested for.
+        if os.path.exists("interfaces.in") and process_ifaces:
+            process_interfaces("interfaces.in",blender_domain,"interfaces.in.obj",upsample_factor=iface_upsample_factor)
         if is_recovery_test():
             for true_f,ref_f in zip(vgridstrue_fs,vgridsref_fs):
-                dv_true = process_dv(true_f,blender_domain,"%s.obj" % true_f,isosurface_specs,name_append="true",vgrid_ref=ref_f,upsample_factor=5)
+                dv_true = process_dv(true_f,blender_domain,"%s.obj" % true_f,isosurface_specs,name_append="true",vgrid_ref=ref_f,upsample_factor=upsample_factor)
         # Create vector GMT map for the fmtomo model.
         make_maps(blender_domain,map_downscale)
     # Dump a bunch of parameters for passing on to the model loading code to be run via Blender.

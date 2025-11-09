@@ -1,10 +1,10 @@
-Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced by an FMTOMO (https://github.com/nrawlinson/FMTOMO) run (i.e. with grid files in FMTOMO format). Also options to automatically render the result looking from the SE, SW, NE and NW.
+Generate a 3D Wavefront/.obj model of a velocity anomaly isosurface as produced by an FMTOMO (https://github.com/nrawlinson/FMTOMO) run (i.e. with grid files in FMTOMO format), or of a generic xyz (lat lon depth dv) format 3D model after conversion using the script `xyz2vgrid.py`. Also options to automatically render the result looking from the SE, SW, NE and NW.
 
 A wireframe map will be placed at the top and bottom of the model volume.
 
 # Dependencies
 
-Linux system with `gmt`, `inskcape` and `blender` (Blender 4.3.2) installed. `fmtomo` working directory using default velocity grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test).
+Linux system with `gmt`, `inskcape` and `blender` (Blender 4.3.2) installed. `fmtomo` working directory using default velocity grid filenames (`vgrids.in` for final, `vgridsref.in` for reference, `vgridstrue.in` for true if it's a recovery test). Initial interfaces may also be optionally rendered if `interfaces.in` is present and the option is checked on the GUI. Note that since these interfaces are more for reference rather than rendering (as they would obscure the velocity model), no material is assigned to them.
 
 Python packages: `json`, `numpy`, `os`, `pandas`, `re`, `scipy`, `shutil`, `skimage`, `subprocess`, `sys`, `tkinter`
 
@@ -18,6 +18,7 @@ If this is the first time running the GUI, or the FMTOMO result of interest has 
 Once FMTOMO files are loaded, the options for the 3D modelling can be set:
 - "dv isosurface (km/s)": the relative velocity isosurface level (in km/s) to be plotted in 3D. Can be positive or negative.
 - "material": corresponding material to assign to the relative velocity isosurface specified above.
+- "Process interfaces": whether to process interfaces.
 - "Blender downscale (km to 1 m)": the scale-down from the FMTOMO model domain to the Blender model domain, which can affect how easy it to move around the Blender model domain (the Blender model domain shouldn't span many 10s of m or more).
 - "Render": whether to automatically render the result or not. When checked, this will render the result looking from the SW, SE, NE, and NW, saving render results to "./tmp/".
 - "Blender GUI": whether to open the Blender GUI or not. Can be unchecked to avoid opening the Blender GUI, which is most useful when render is checked.

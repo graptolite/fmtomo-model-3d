@@ -207,7 +207,7 @@ color_material(l_map_mtl_lower,(*materials.lower_map_rgb,1))
 deselect_all()
 
 # Load as many things as possible.
-file_bases = ["vgridstrue.in","vgrids.in"]
+file_bases = ["vgridstrue.in","vgrids.in","interfaces.in"]
 files = []
 all_files = os.listdir()
 for base in file_bases:
